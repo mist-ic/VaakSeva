@@ -1,0 +1,51 @@
+scheme_id: pm_kisan
+scheme_name: PM-KISAN (Pradhan Mantri Kisan Samman Nidhi)
+language: en
+category: agriculture
+source_url: https://pmkisan.gov.in
+
+---
+
+# PM-KISAN Scheme
+
+## Overview
+The Pradhan Mantri Kisan Samman Nidhi (PM-KISAN) provides direct income support to all land-holding farmer families in India. The scheme became operational from December 1, 2018.
+
+## Financial Benefit
+- Rs 6,000 per year in three equal installments of Rs 2,000 each
+- Transferred directly to bank accounts via Direct Benefit Transfer (DBT)
+- Payment schedule: April-July, August-November, December-March
+
+## Eligibility
+- Farmer families holding cultivable land
+- Family includes husband, wife, and minor children (below 18 years)
+
+## Exclusion Categories
+- Institutional land holders
+- Former/current constitutional post holders (Ministers, MPs, MLAs)
+- Retired/serving Central/State government officers (Group A/B)
+- Retired pensioners with monthly pension above Rs 10,000
+- Income tax payers
+- Professionals (doctors, engineers, lawyers, CAs)
+
+## Required Documents
+- Aadhaar card (mandatory)
+- Bank account linked with Aadhaar
+- Land ownership records (Khasra/Khatauni)
+- Mobile number
+
+## Application Process
+1. Visit pmkisan.gov.in
+2. Click "New Farmer Registration"
+3. Fill Aadhaar number, mobile, and bank details
+4. Submit land holding details
+5. Can also apply through nearest CSC (Common Service Centre)
+6. Registration via Village Patwari/Lekhpal also possible
+
+## Check Payment Status
+- Visit pmkisan.gov.in -> Beneficiary Status
+- Enter Aadhaar or bank account number
+- PM Kisan Mobile App available
+
+## Helpline
+- 155261 / 011-24300606

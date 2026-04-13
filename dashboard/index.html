@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VaakSeva - Metrics Dashboard</title>
+  <meta name="description" content="Real-time metrics dashboard for VaakSeva Hindi voice RAG assistant" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="header-content">
+        <div class="brand">
+          <span class="brand-icon">🗣️</span>
+          <h1>VaakSeva</h1>
+          <span class="brand-sub">Observer</span>
+        </div>
+        <div class="header-meta">
+          <span class="badge badge-live">Live</span>
+          <span id="last-updated" class="last-updated">Updating...</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <!-- Summary cards -->
+      <section class="cards-row" aria-label="Summary metrics">
+        <div class="card stat-card">
+          <div class="stat-label">Total Queries</div>
+          <div class="stat-value" id="stat-total">--</div>
+          <div class="stat-sub" id="stat-today">-- today</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-label">This Week</div>
+          <div class="stat-value" id="stat-week">--</div>
+          <div class="stat-sub">rolling 7 days</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-label">Avg. Latency</div>
+          <div class="stat-value" id="stat-latency">--</div>
+          <div class="stat-sub" id="stat-p95">P95: --</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-label">Error Rate</div>
+          <div class="stat-value" id="stat-error">--</div>
+          <div class="stat-sub" id="stat-error-count">-- errors</div>
+        </div>
+      </section>
+
+      <!-- Charts row 1 -->
+      <section class="charts-row">
+        <div class="card chart-card" id="daily-trend-card">
+          <div class="chart-header">
+            <h2>Daily Queries</h2>
+            <span class="chart-note">Last 7 days</span>
+          </div>
+          <canvas id="daily-chart" aria-label="Daily query trend chart"></canvas>
+        </div>
+
+        <div class="card chart-card" id="latency-card">
+          <div class="chart-header">
+            <h2>Latency Breakdown</h2>
+            <span class="chart-note">P50 per stage (ms)</span>
+          </div>
+          <canvas id="latency-chart" aria-label="Pipeline stage latency chart"></canvas>
+        </div>
+      </section>
+
+      <!-- Charts row 2 -->
+      <section class="charts-row">
+        <div class="card chart-card" id="schemes-card">
+          <div class="chart-header">
+            <h2>Top Queried Schemes</h2>
+            <span class="chart-note">By frequency</span>
+          </div>
+          <canvas id="schemes-chart" aria-label="Top schemes bar chart"></canvas>
+        </div>
+
+        <div class="card chart-card chart-card--sm">
+          <div class="chart-header">
+            <h2>Input Types</h2>
+          </div>
+          <canvas id="input-type-chart" aria-label="Input type pie chart"></canvas>
+
+          <div class="chart-header" style="margin-top:2rem;">
+            <h2>Languages</h2>
+          </div>
+          <canvas id="lang-chart" aria-label="Language distribution chart"></canvas>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="charts.js"></script>
+</body>
+</html>

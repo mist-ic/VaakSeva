@@ -1,0 +1,45 @@
+scheme_id: ayushman_bharat
+scheme_name: Ayushman Bharat - PM Jan Arogya Yojana (AB-PMJAY)
+language: en
+category: health
+source_url: https://pmjay.gov.in
+
+---
+
+# Ayushman Bharat - PM Jan Arogya Yojana
+
+## Overview
+AB-PMJAY is the world's largest health insurance scheme fully financed by the government. Launched on September 23, 2018, it provides health coverage to over 55 crore beneficiaries.
+
+## Benefits
+- Health cover of Rs 5 lakh per family per year
+- Cashless and paperless treatment at empanelled hospitals
+- Coverage for 1,949+ medical procedures
+- Pre-hospitalization (3 days) and post-hospitalization (15 days) expenses covered
+
+## Eligibility
+- Families identified in SECC 2011 database
+- Rural: no proper house, manual scavengers, marginalized groups, SC/ST households
+- Urban: rag pickers, beggars, domestic workers, street vendors, construction workers
+
+## Coverage Details
+- All pre-existing conditions covered from day 1
+- Hospitalization, surgery, chemotherapy, dialysis
+- Mental health treatment included
+- ICU charges covered
+- Day-care treatments (no hospitalization required)
+
+## How to Get Ayushman Card
+1. Visit pmjay.gov.in or call 14555
+2. Click "Am I Eligible"
+3. Enter ration card/mobile number
+4. If eligible, visit nearest CSC for biometric verification
+5. Ayushman card issued
+
+## Find Empanelled Hospital
+- pmjay.gov.in/hospitals -> Find Hospital
+- Enter pincode to see nearby hospitals
+
+## Helpline
+- 14555 (toll-free)
+- 1800-111-565

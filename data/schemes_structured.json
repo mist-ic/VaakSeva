@@ -1,0 +1,160 @@
+{
+  "pm_kisan": {
+    "name_en": "PM-KISAN",
+    "name_hi": "पीएम-किसान",
+    "category": "agriculture",
+    "apply_url": "https://pmkisan.gov.in",
+    "benefits_summary_hi": "प्रति वर्ष ₹6,000 सीधे बैंक खाते में (तीन किस्तों में, प्रत्येक ₹2,000)",
+    "benefits_summary_en": "Rs 6000 per year in 3 installments of Rs 2000 each",
+    "criteria": [
+      {"field": "occupation", "op": "in", "values": ["farmer", "किसान"], "mandatory": true},
+      {"field": "has_aadhaar", "op": "eq", "value": true, "mandatory": true}
+    ]
+  },
+  "ayushman_bharat": {
+    "name_en": "Ayushman Bharat PMJAY",
+    "name_hi": "आयुष्मान भारत",
+    "category": "health",
+    "apply_url": "https://pmjay.gov.in",
+    "benefits_summary_hi": "₹5 लाख तक का स्वास्थ्य बीमा प्रति परिवार प्रति वर्ष",
+    "benefits_summary_en": "Rs 5 lakh health insurance per family per year",
+    "criteria": [
+      {"field": "is_bpl", "op": "eq", "value": true, "mandatory": true}
+    ]
+  },
+  "ujjwala_yojana": {
+    "name_en": "PM Ujjwala Yojana",
+    "name_hi": "उज्ज्वला योजना",
+    "category": "energy",
+    "apply_url": "https://pmuy.gov.in",
+    "benefits_summary_hi": "BPL परिवारों को निशुल्क LPG कनेक्शन",
+    "benefits_summary_en": "Free LPG connection for BPL households",
+    "criteria": [
+      {"field": "is_bpl", "op": "eq", "value": true, "mandatory": true},
+      {"field": "gender", "op": "in", "values": ["female", "महिला"], "mandatory": false}
+    ]
+  },
+  "pm_awas_yojana_gramin": {
+    "name_en": "PMAY-Gramin",
+    "name_hi": "पीएम आवास योजना ग्रामीण",
+    "category": "housing",
+    "apply_url": "https://pmayg.nic.in",
+    "benefits_summary_hi": "मैदानी क्षेत्र में ₹1,20,000 और पहाड़ी क्षेत्र में ₹1,30,000 पक्के मकान के लिए",
+    "benefits_summary_en": "Rs 1,20,000 (plains) or Rs 1,30,000 (hilly) for house construction",
+    "criteria": [
+      {"field": "is_bpl", "op": "eq", "value": true, "mandatory": true},
+      {"field": "occupation", "op": "in", "values": ["farmer", "laborer", "किसान", "मजदूर"], "mandatory": false}
+    ]
+  },
+  "mudra_yojana": {
+    "name_en": "PM MUDRA Yojana",
+    "name_hi": "पीएम मुद्रा योजना",
+    "category": "entrepreneurship",
+    "apply_url": "https://mudra.org.in",
+    "benefits_summary_hi": "₹50,000 से ₹10 लाख तक का बिना गारंटी ऋण",
+    "benefits_summary_en": "Loans from Rs 50,000 to Rs 10 lakh without collateral",
+    "criteria": [
+      {"field": "occupation", "op": "in", "values": ["self_employed", "small_business", "स्वरोजगार"], "mandatory": true}
+    ]
+  },
+  "atal_pension_yojana": {
+    "name_en": "Atal Pension Yojana",
+    "name_hi": "अटल पेंशन योजना",
+    "category": "pension",
+    "apply_url": "https://npscra.nsdl.co.in",
+    "benefits_summary_hi": "60 वर्ष के बाद ₹1,000 से ₹5,000 प्रतिमाह गारंटीशुदा पेंशन",
+    "benefits_summary_en": "Guaranteed pension of Rs 1000 to Rs 5000 per month after age 60",
+    "criteria": [
+      {"field": "age", "op": "lte", "value": 40, "mandatory": true},
+      {"field": "age", "op": "gte", "value": 18, "mandatory": true}
+    ]
+  },
+  "sukanya_samridhi": {
+    "name_en": "Sukanya Samridhi Yojana",
+    "name_hi": "सुकन्या समृद्धि योजना",
+    "category": "savings",
+    "apply_url": "https://nsiindia.gov.in",
+    "benefits_summary_hi": "बालिका के भविष्य के लिए 8.2% ब्याज के साथ बचत, टैक्स फ्री",
+    "benefits_summary_en": "8.2% interest tax-free savings scheme for girl child",
+    "criteria": [
+      {"field": "gender", "op": "in", "values": ["female", "महिला", "लड़की"], "mandatory": true},
+      {"field": "age", "op": "lte", "value": 10, "mandatory": true}
+    ]
+  },
+  "mgnregs": {
+    "name_en": "MGNREGS",
+    "name_hi": "मनरेगा",
+    "category": "employment",
+    "apply_url": "https://nrega.nic.in",
+    "benefits_summary_hi": "100 दिन गारंटीशुदा रोजगार, ₹200-350 प्रति दिन मजदूरी",
+    "benefits_summary_en": "100 days guaranteed employment at Rs 200-350 per day",
+    "criteria": [
+      {"field": "occupation", "op": "in", "values": ["laborer", "unemployed", "farmer", "मजदूर", "बेरोजगार"], "mandatory": true}
+    ]
+  },
+  "fasal_bima": {
+    "name_en": "PM Fasal Bima Yojana",
+    "name_hi": "पीएम फसल बीमा योजना",
+    "category": "agriculture",
+    "apply_url": "https://pmfby.gov.in",
+    "benefits_summary_hi": "फसल बर्बाद होने पर बीमा मुआवजा, किसान केवल 1.5-2% प्रीमियम देता है",
+    "benefits_summary_en": "Crop insurance with farmer paying only 1.5-2% premium",
+    "criteria": [
+      {"field": "occupation", "op": "in", "values": ["farmer", "किसान"], "mandatory": true}
+    ]
+  },
+  "svanidhi": {
+    "name_en": "PM SVANidhi",
+    "name_hi": "पीएम स्वनिधि",
+    "category": "entrepreneurship",
+    "apply_url": "https://pmsvanidhi.mohua.gov.in",
+    "benefits_summary_hi": "रेहड़ी-पटरी वालों के लिए ₹10,000 से ₹50,000 तक ऋण",
+    "benefits_summary_en": "Loans from Rs 10,000 to Rs 50,000 for street vendors",
+    "criteria": [
+      {"field": "occupation", "op": "in", "values": ["street_vendor", "रेहड़ी वाला", "विक्रेता"], "mandatory": true}
+    ]
+  },
+  "pm_jan_dhan": {
+    "name_en": "PM Jan Dhan Yojana",
+    "name_hi": "जन धन योजना",
+    "category": "banking",
+    "apply_url": "https://pmjdy.gov.in",
+    "benefits_summary_hi": "शून्य बैलेंस बैंक खाता, ₹2 लाख दुर्घटना बीमा, ₹10,000 ओवरड्राफ्ट",
+    "benefits_summary_en": "Zero balance bank account with Rs 2 lakh accident insurance and Rs 10,000 overdraft",
+    "criteria": []
+  },
+  "vishwakarma": {
+    "name_en": "PM Vishwakarma Yojana",
+    "name_hi": "पीएम विश्वकर्मा",
+    "category": "skill",
+    "apply_url": "https://pmvishwakarma.gov.in",
+    "benefits_summary_hi": "पारंपरिक कारीगरों को ₹15,000 टूलकिट, ₹1-2 लाख ऋण, और कौशल प्रशिक्षण",
+    "benefits_summary_en": "Rs 15,000 toolkit, Rs 1-2 lakh loan, and skill training for traditional artisans",
+    "criteria": [
+      {"field": "occupation", "op": "in", "values": ["carpenter", "blacksmith", "potter", "tailor", "goldsmith", "barber", "washerman", "कारीगर", "शिल्पकार"], "mandatory": true}
+    ]
+  },
+  "standup_india": {
+    "name_en": "Stand-Up India",
+    "name_hi": "स्टैंड अप इंडिया",
+    "category": "entrepreneurship",
+    "apply_url": "https://www.standupmitra.in",
+    "benefits_summary_hi": "SC/ST और महिला उद्यमियों को ₹10 लाख से ₹1 करोड़ तक ऋण",
+    "benefits_summary_en": "Loans from Rs 10 lakh to Rs 1 crore for SC/ST and women entrepreneurs",
+    "criteria": [
+      {"field": "category", "op": "in", "values": ["SC", "ST"], "mandatory": false},
+      {"field": "gender", "op": "in", "values": ["female", "महिला"], "mandatory": false}
+    ]
+  },
+  "nsp_scholarship": {
+    "name_en": "National Scholarship Portal",
+    "name_hi": "राष्ट्रीय छात्रवृत्ति पोर्टल",
+    "category": "education",
+    "apply_url": "https://scholarships.gov.in",
+    "benefits_summary_hi": "SC/ST/OBC/अल्पसंख्यक छात्रों के लिए ₹3,500 से ₹50,000 तक छात्रवृत्ति",
+    "benefits_summary_en": "Scholarships from Rs 3,500 to Rs 50,000 for SC/ST/OBC/minority students",
+    "criteria": [
+      {"field": "education", "op": "in", "values": ["secondary", "higher_secondary", "graduate", "postgraduate"], "mandatory": true}
+    ]
+  }
+}

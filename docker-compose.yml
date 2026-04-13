@@ -1,0 +1,86 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: vaakseva-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - LLM_BACKEND=${LLM_BACKEND:-ollama}
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-sarvam-m:latest}
+      - EMBEDDER_BACKEND=${EMBEDDER_BACKEND:-e5}
+      - RERANKER_BACKEND=${RERANKER_BACKEND:-noop}
+      - TTS_BACKEND=${TTS_BACKEND:-edge}
+      - WEAVIATE_HOST=weaviate
+      - WEAVIATE_PORT=8081
+      - WEAVIATE_GRPC_PORT=50051
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - PHONE_HASH_SALT=${PHONE_HASH_SALT:-change-this}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      weaviate:
+        condition: service_started
+      redis:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  weaviate:
+    image: semitechnologies/weaviate:1.23.9
+    container_name: vaakseva-weaviate
+    ports:
+      - "8081:8081"
+      - "50051:50051"
+    environment:
+      QUERY_DEFAULTS_LIMIT: "25"
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
+      PERSISTENCE_DATA_PATH: "/var/lib/weaviate"
+      DEFAULT_VECTORIZER_MODULE: "none"
+      CLUSTER_HOSTNAME: "node1"
+      GRPC_PORT: "50051"
+      PORT: "8081"
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: vaakseva-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+
+  whatsapp:
+    build:
+      context: ./whatsapp
+      dockerfile: Dockerfile
+    container_name: vaakseva-whatsapp
+    environment:
+      - WHATSAPP_BACKEND_URL=http://backend:8080
+    volumes:
+      - ./whatsapp/auth:/app/auth
+    depends_on:
+      - backend
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+
+volumes:
+  weaviate_data:
+    driver: local
+  redis_data:
+    driver: local

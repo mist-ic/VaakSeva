@@ -1,0 +1,58 @@
+# Core web framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+
+# Configuration
+pydantic==2.10.4
+pydantic-settings==2.7.0
+
+# Vector database
+weaviate-client==4.10.2
+
+# Embeddings and ML
+sentence-transformers==3.4.1
+torch==2.5.1
+transformers==4.48.3
+numpy==1.26.4
+
+# Speech-to-text
+faster-whisper==1.1.1
+
+# Text-to-speech (dev fallback)
+edge-tts==7.0.2
+
+# Audio processing
+pydub==0.25.1
+soundfile==0.12.1
+librosa==0.10.2
+
+# PDF / document parsing
+pdfplumber==0.11.4
+pypdf2==3.0.1
+
+# HTTP client
+httpx==0.28.1
+aiohttp==3.11.11
+
+# Job queue
+redis==5.2.1
+rq==2.3.3
+
+# Language detection
+langdetect==1.0.9
+
+# Text normalization
+unicodedata2==15.1.0
+
+# Logging
+python-json-logger==3.2.1
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.25.3
+pytest-mock==3.14.0
+
+# Dev tools (not required in production)
+black==24.10.0
+isort==5.13.2

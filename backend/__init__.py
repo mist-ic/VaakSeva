@@ -1,0 +1,3 @@
+"""
+VaakSeva backend package.
+"""
