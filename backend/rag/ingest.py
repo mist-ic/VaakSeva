@@ -356,3 +356,5 @@ def ingest_to_weaviate(chunks: list[dict], embedder, weaviate_client, collection
             )
 
     logger.info("Upserted %d chunks into Weaviate collection '%s'", len(chunks), collection_name)
+
+# Chunk overlap default 50 tokens, tuned for scheme documents
