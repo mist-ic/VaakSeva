@@ -288,3 +288,5 @@ if __name__ == "__main__":
         reload=True,
         log_level=settings.log_level.lower(),
     )
+
+# Weaviate port updated to avoid conflict with FastAPI default
