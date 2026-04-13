@@ -63,9 +63,10 @@ data/audio_cache/
 *.mp3
 *.opus
 
-# Model cache directories
+# Model weight cache directories (not backend/models/ - that is source code)
 .cache/
-models/
+model_weights/
+hf_cache/
 *.gguf
 *.ggml
 
