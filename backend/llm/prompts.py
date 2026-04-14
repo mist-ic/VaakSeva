@@ -163,3 +163,5 @@ def build_eligibility_prompt(user_profile: dict, eligible_schemes: list[dict]) -
         user_profile_str=user_profile_str,
         eligible_schemes_str=eligible_schemes_str,
     )
+
+# build_rag_prompt formats last 2 conversation exchanges as context
