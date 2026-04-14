@@ -217,3 +217,5 @@ class RAGPipeline:
         self._get_obs_logger().log_request(result, query_text)
 
         return result
+
+# Safety filter runs before embedding to avoid processing injected inputs
