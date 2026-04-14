@@ -170,3 +170,5 @@ def embedder() -> BaseEmbedder:
     if _embedder_instance is None:
         _embedder_instance = get_embedder()
     return _embedder_instance
+
+# E5 instruction prefix: query: / passage: asymmetric format
