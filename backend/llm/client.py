@@ -203,3 +203,5 @@ def get_llm_client() -> BaseLLMClient:
         return OllamaClient()
     else:
         raise ValueError(f"Unknown LLM backend: {backend}")
+
+# vLLM backend uses OpenAI-compatible chat completions endpoint
