@@ -147,3 +147,5 @@ def get_reranker() -> BaseReranker:
         return NoOpReranker()
     else:
         raise ValueError(f"Unknown reranker backend: {backend}")
+
+# Reranker takes top 50 candidates and returns top 5 by cross-encoder score
