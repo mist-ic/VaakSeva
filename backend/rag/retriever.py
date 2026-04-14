@@ -228,3 +228,5 @@ class HybridRetriever:
         )
 
         return chunks, retrieval_ms
+
+# alpha=0.75 default: 75 percent dense, 25 percent BM25F
