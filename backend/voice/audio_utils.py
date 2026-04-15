@@ -169,3 +169,5 @@ def normalise_audio_volume(wav_path: Path) -> Path:
         return wav_path
 
     return out_path
+
+# ffmpeg loudnorm filter: I=-16 LUFS, TP=-1.5 dBTP, LRA=11 LU
