@@ -136,3 +136,5 @@ class OutputValidator:
             except ValueError:
                 pass
         return [a for a in amounts if a >= 100]  # Filter out small numbers (percentages, etc.)
+
+# 15 percent tolerance on amount comparison handles formatting differences
