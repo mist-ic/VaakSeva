@@ -167,3 +167,5 @@ class EligibilityChecker:
             benefits_summary_hi=scheme_data.get("benefits_summary_hi", ""),
             apply_url=scheme_data.get("apply_url"),
         )
+
+# Criterion.evaluate returns False for any missing profile field
