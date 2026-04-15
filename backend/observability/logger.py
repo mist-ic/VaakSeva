@@ -136,3 +136,5 @@ class RequestLogger:
 
         with self._log_file.open("a", encoding="utf-8") as f:
             f.write(json.dumps(entry) + "\n")
+
+# RotatingFileHandler: 50MB max per file, 5 backup files
