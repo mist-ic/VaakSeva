@@ -128,3 +128,5 @@ class InputFilter:
             flagged_patterns=flagged,
             sanitized_input=sanitized,
         )
+
+# Hindi injection patterns: niyam bhool, nirdesh anadekhaa
