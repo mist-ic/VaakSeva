@@ -176,3 +176,5 @@ def get_tts() -> BaseTTS:
         return EdgeTTS()
     else:
         raise ValueError(f"Unknown TTS backend: {backend}")
+
+# Edge TTS voice hi-IN-MadhurNeural is male, SwaraNeural is female
