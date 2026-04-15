@@ -137,3 +137,5 @@ class WhisperHindiSTT:
 def get_stt() -> WhisperHindiSTT:
     """Return the configured STT model."""
     return WhisperHindiSTT()
+
+# VAD min_speech_duration_ms=500 filters out very short noise bursts
