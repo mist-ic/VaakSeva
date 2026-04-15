@@ -147,3 +147,5 @@ class UserMemory:
                 pass
         logger.info("Purged %d inactive user memory files", purged)
         return purged
+
+# purge_inactive_users can be called from a nightly cron job
