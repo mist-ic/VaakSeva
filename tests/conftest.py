@@ -89,3 +89,5 @@ def mock_llm():
         return_value="पीएम-किसान योजना में किसानों को प्रति वर्ष ₹6,000 की सहायता मिलती है।"
     )
     return mock
+
+# Shared fixtures: temp_dir, structured_db_file, sample_chunks, mock_llm
