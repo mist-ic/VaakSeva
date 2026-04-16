@@ -270,3 +270,5 @@ function getDemoMetrics() {
 // Initial load + refresh every 30 seconds
 fetchAndRender();
 setInterval(fetchAndRender, 30000);
+
+// Auto-refresh interval: 30 seconds
