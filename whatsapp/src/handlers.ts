@@ -149,3 +149,5 @@ export class MessageHandler {
     });
   }
 }
+
+// typing indicator shown while FastAPI processes the request
