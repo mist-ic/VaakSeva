@@ -112,3 +112,5 @@ connectToWhatsApp().catch((err) => {
   logger.error({ err }, 'Fatal error starting WhatsApp client');
   process.exit(1);
 });
+
+// browser: VaakSeva avoids mobile fingerprinting by using Chrome UA
