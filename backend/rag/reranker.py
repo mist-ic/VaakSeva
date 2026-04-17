@@ -1,15 +1,22 @@
 """
 Reranker module for VaakSeva.
 
-After hybrid retrieval returns top-50 candidates, the reranker
-re-scores them with a cross-encoder for much higher precision.
+After hybrid retrieval returns top-20 candidates, the reranker re-scores them
+with a cross-encoder for much higher precision before sending to the LLM.
 
-Backends:
-  - Qwen3Reranker: Qwen/Qwen3-Reranker-8B (best quality, GPU recommended)
-  - NoOpReranker: passthrough — returns candidates in original order (dev mode)
+Default backend: Qwen3-Reranker-0.6B (enabled by default)
+  - Fast on CPU (~200-400ms for top-20 candidates)
+  - Still outperforms no-reranking on MTEB multilingual reranking benchmarks
+  - Supports 100+ languages including Hindi
 
-Qwen3-Reranker-8B consistently lifts recall@5 by 8-15% over retrieval alone
-on multilingual benchmarks (BEIR, MIRACL).
+Why NOT Qwen3-Reranker-8B in production:
+  - 8B cross-encoder on CPU adds 2-5 seconds per request
+  - This single component would blow the 6-second end-to-end budget
+  - 0.6B is the practical sweet spot for CPU deployment
+
+Alternative: Cohere Rerank v3.5 API (~50-100ms, ~$2/1000 searches)
+  - If you need 8B-quality reranking within latency budget
+  - Set RERANKER_BACKEND=cohere (future implementation)
 """
 
 from __future__ import annotations
@@ -39,7 +46,6 @@ class BaseReranker(ABC):
     ) -> tuple[list[RetrievedChunk], float]:
         """
         Rerank chunks by relevance to query.
-
         Returns (reranked_chunks[:top_k], rerank_ms).
         """
 
@@ -51,12 +57,15 @@ class BaseReranker(ABC):
 
 class Qwen3Reranker(BaseReranker):
     """
-    Cross-encoder reranker using Qwen/Qwen3-Reranker-8B.
+    Cross-encoder reranker using Qwen3-Reranker-0.6B (default).
 
-    The model takes (query, passage) pairs and outputs a relevance score.
-    We pass all candidates and return the top_k by score.
+    The model scores (query, passage) pairs and returns a relevance score.
+    We pass all top-20 candidates and return the top_k by score.
 
-    VRAM: ~4-6 GB (FP16) or ~2-3 GB (int8).
+    CPU latency (0.6B, top-20 candidates): ~200-400ms
+    CPU latency (8B, top-20 candidates): ~2000-5000ms -- too slow for pipeline
+
+    To use 8B for better quality: set QWEN3_RERANKER_MODEL=Qwen/Qwen3-Reranker-8B
     """
 
     def __init__(self, model_name: str | None = None, device: str | None = None):
@@ -70,9 +79,9 @@ class Qwen3Reranker(BaseReranker):
             model_name,
             device=device,
             trust_remote_code=True,
-            max_length=512,
+            max_length=256,  # sufficient for scheme document chunks
         )
-        logger.info("Qwen3 reranker ready")
+        logger.info("Qwen3 reranker ready (model=%s)", model_name)
 
     def rerank(
         self,
@@ -101,7 +110,7 @@ class Qwen3Reranker(BaseReranker):
 
         rerank_ms = (time.perf_counter() - t0) * 1000
         logger.debug(
-            "Reranked %d -> %d candidates in %.1f ms. Top score: %.4f",
+            "Reranked %d -> %d candidates in %.1fms. Top score: %.4f",
             len(chunks),
             len(reranked),
             rerank_ms,
@@ -112,16 +121,16 @@ class Qwen3Reranker(BaseReranker):
 
 
 # ---------------------------------------------------------------------------
-# NoOp reranker (passthrough for dev mode)
+# NoOp reranker (passthrough)
 # ---------------------------------------------------------------------------
 
 
 class NoOpReranker(BaseReranker):
     """
-    Passthrough reranker — returns candidates in original retrieval order.
+    Passthrough reranker -- returns candidates in original retrieval order.
 
-    Used in development or when GPU is not available.
-    Enables testing the pipeline without loading the 8B reranker model.
+    Use only for debugging or when CPU budget is extremely tight.
+    In normal operation, Qwen3-Reranker-0.6B is fast enough on CPU.
     """
 
     def rerank(
@@ -146,6 +155,4 @@ def get_reranker() -> BaseReranker:
     elif backend == "noop":
         return NoOpReranker()
     else:
-        raise ValueError(f"Unknown reranker backend: {backend}")
-
-# Reranker takes top 50 candidates and returns top 5 by cross-encoder score
+        raise ValueError(f"Unknown reranker backend: {backend!r}")
