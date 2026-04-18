@@ -95,7 +95,15 @@ def ensure_collection(client: weaviate.WeaviateClient) -> None:
                 data_type=wvc.config.DataType.TEXT,
                 skip_vectorization=True,
                 index_filterable=False,
-                index_searchable=True,  # BM25 index
+                index_searchable=True,  # BM25 index for Devanagari
+            ),
+            wvc.config.Property(
+                name="content_roman",
+                data_type=wvc.config.DataType.TEXT,
+                skip_vectorization=True,
+                index_filterable=False,
+                index_searchable=True,  # BM25 index for romanized Hindi queries
+                # Catches users typing "kisan credit card" vs "किसान क्रेडिट कार्ड"
             ),
             wvc.config.Property(
                 name="chunk_index",
