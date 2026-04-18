@@ -8,31 +8,29 @@ Deep-dive on design decisions, alternatives considered, and trade-offs made.
 
 ### LLM: Sarvam-30B
 
-**Decision**: Sarvam-30B over Llama-3-8B, Gemma-2, or Mistral-Small.
+**Decision**: Sarvam-30B free hosted API over self-hosted vLLM/Ollama.
 
-Sarvam-30B was trained from scratch on 22 Indian languages with SFT + RL. It is not a fine-tuned Western model - it was designed with Indic languages as first-class citizens from pretraining. This matters for Hindi because:
+Sarvam-30B was trained from scratch on 16 trillion tokens across 22 Indian languages. It is not a fine-tuned Western model -- it was designed with Indic languages as first-class citizens from pretraining. This matters for Hindi because:
 
 - Devanagari tokenization is efficient (not thousands of tokens for a simple sentence)
 - Cultural context around Indian government schemes is built into the model weights
 - Multi-instruction following in Hindi is significantly better
 
-Compute cost: MoE with 30B total parameters but 2.4B active per token. In practice, it runs at the speed of an 8B dense model on a single GPU.
+As of April 2026, Sarvam's hosted API offers Sarvam-30B at Rs 0/token (free). There is no operational reason to self-host when the same model -- with better serving infrastructure -- is available at zero cost. TTFT on the hosted API is ~1.2 seconds.
 
-The Apache 2.0 license and self-hosting requirement made OpenAI/Anthropic/Gemini a non-starter. This directly mirrors Puch AI's architecture.
+**Speed fallback**: Groq Llama-3.3-70B at 250-500 tokens/second. Groq's LPU gives the fastest token generation available. Llama 3.3-70B handles Hindi well with a strong system prompt. We switch to Groq automatically when Sarvam API latency exceeds the LLM budget (3 seconds).
 
-**Alternative**: Sarvam-M (24B dense). Better if MoE serving proves unreliable on a single GPU. I tested both - Sarvam-30B gives better Hindi coherence for longer responses, Sarvam-M is slightly faster.
+**Self-hosted**: vLLM + Sarvam-30B (original design) is still supported. Switch `LLM_BACKEND=vllm` if API dependency is not acceptable.
 
-### Embeddings: Qwen3-Embedding-8B
+### Embeddings: Qwen3-Embedding-0.6B
 
-**Decision**: Qwen3-Embedding-8B over mE5-large or BGE-M3.
+**Decision**: Qwen3-Embedding-0.6B over mE5-large or BGE-M3.
 
-Qwen3-Embedding-8B ranks #1 on MTEB Multilingual (70.58 as of April 2026). Its key advantage is the use of asymmetric instruction prefixes:
-- Queries: "Retrieve relevant documents for the following query: {text}"
-- Documents: no prefix (embedded as-is)
+Qwen3-Embedding-0.6B outperforms multilingual-e5-large-instruct on MTEB Multilingual despite being much lighter. The 0.6B model produces 1024D embeddings, the same dimension as E5-large, making Weaviate collection schemas compatible between the two models.
 
-This asymmetric design is important for RAG: the query embedding and document embedding live in different "semantic spaces" by design, which reduces false positives.
+At query time (real-time pipeline), Qwen3-0.6B adds ~50-100ms on CPU -- within the 500ms embedding budget. For highest quality offline indexing, the 8B variant (`Qwen/Qwen3-Embedding-8B`, 7168D) can be used by setting the env var during ingestion.
 
-**Fallback**: `multilingual-e5-large-instruct` (560M). It ranks high on MTEB(Indic) per the MMTEB paper, works on CPU, and the E5 instruction format (query: / passage: ) maps naturally to Weaviate's hybrid search.
+Asymmetric retrieval (the reason instructions matter): query embeddings use the prefix "Retrieve relevant documents for the following query: ". Document embeddings use no prefix. This asymmetric design significantly reduces false positives in RAG retrieval.
 
 **Rejected**: BAAI/bge-m3. While it supports dense+sparse+ColBERT in one pass, its sparse representation adds complexity to the ingestion pipeline. Weaviate handles BM25 server-side, making bge-m3's sparse advantage irrelevant here.
 
@@ -53,30 +51,29 @@ Weaviate's `hybrid()` query takes the plain text query and does BM25 on the serv
 
 The tunable `alpha` parameter for Reciprocal Rank Fusion is important: for Hindi conversational queries (alpha=0.75, dense-heavy), BM25 is less reliable due to morphological variation. For scheme name lookups (alpha=0.5), BM25 precision is valuable.
 
-### STT: collabora/faster-whisper-large-v2-hindi
+### STT: Sarvam Saaras V3
 
-**Decision**: This specific model over openai/whisper-large-v2 or vasista22/whisper-hindi-large-v2.
+**Decision**: Sarvam Saaras V3 hosted API over self-hosted Whisper.
 
-Published WERs on Hindi FLEURS:
-- `collabora/faster-whisper-large-v2-hindi`: **5.33%** (CC-BY-4.0)
-- `vasista22/whisper-hindi-large-v2`: 6.8% (Apache 2.0)
-- `openai/whisper-large-v2`: ~12% (no Hindi-specific tuning)
+Saaras V3 (released February 2026) achieves ~19% WER on the IndicVoices benchmark, outperforming GPT-4o Transcribe, Deepgram Nova-3, and ElevenLabs Scribe v2 on all top 10 Indian languages. Trained on 1M+ hours of curated multilingual audio with explicit coverage of telephony noise, code-mixed speech, and rural Indian accents.
 
-The collabora model was trained on ~3000h Hindi data (Shrutilipi + IndicVoices-R + Lahaja). The CTranslate2 format provides ~4x speedup over PyTorch inference.
+At Rs 30/hour of audio, a 20-second WhatsApp voice note costs Rs 0.17 -- essentially free at demo volume. This eliminates the CPU bottleneck of running Whisper locally.
 
-**Confidence gating**: WhatsApp voice notes often contain noise (traffic, background conversations). `info.language_probability` from Whisper is used as an audio quality gate - if below 0.7, return a Hindi error asking the user to resend.
+**Self-hosted fallback**: faster-whisper large-v3 (upgraded from large-v2). large-v3 improves Hindi WER by 4+ points over large-v2. For best open-source Hindi accuracy: AI4Bharat's IndicWhisper achieves the lowest WER on 39/59 Vistaar benchmarks.
 
-**Silero VAD**: Whisper's built-in VAD (SILERO-based) segments the audio and skips silence. Important for voice notes that start with ambient noise before the user starts speaking.
+**Rejected for STT**: Groq Whisper (stock large-v3 without Indian fine-tuning). Real-world reports confirm degraded accuracy on Hindi/Hinglish/accented speech.
 
-### TTS: Veena (maya-research)
+### TTS: Sarvam Bulbul v3 + Kokoro v1.0
 
-**Decision**: Veena over AI4Bharat Indic-Parler-TTS or Coqui TTS.
+**Decision**: Sarvam Bulbul v3 (API primary) + Kokoro v1.0 (self-hosted fallback) over Veena.
 
-Veena is a 3B Llama-based autoregressive TTS with SNAC 24kHz codec, explicitly designed for Hindi + English + Hinglish code-mix. MOS of ~4.2/5 on Hindi. Apache 2.0.
+Veena (maya-research) had no publicly available benchmarks and no peer-reviewed evaluation. In the codebase, the Veena synthesise method raised `NotImplementedError` because the actual audio decoding API was never finalized by the model author.
 
-Key advantage: Hinglish code-mix support. WhatsApp users frequently mix Hindi and English ("mujhe PM Kisan ka paisa kab aayega"), and Veena handles this naturally.
+Bulbul v3 (released February 4, 2026): CER of 0.0173 on Sarvam's benchmark, designed for production real-time applications, ~600ms latency. Priced at Rs 30/10,000 characters.
 
-**Edge TTS fallback**: Microsoft's Edge TTS provides natural Hindi voices (`hi-IN-MadhurNeural`, `hi-IN-SwaraNeural`) with zero setup. Network-dependent (200-500ms) and not self-hosted, but invaluable for development iteration.
+Kokoro v1.0 (hexgrad/Kokoro-82M): 82M parameters, Apache 2.0, ranked #1 on TTS Arena. Runs fast on CPU -- generating 5 minutes of audio in seconds. Hindi voices hf_alpha and hf_omega support correct pronunciation of Hindi vocabulary and technical government scheme terminology.
+
+**Edge TTS**: Microsoft Edge TTS remains as emergency fallback. It is an unofficial endpoint and carries deprecation risk.
 
 ---
 
@@ -146,11 +143,11 @@ For a government scheme assistant with a narrow domain, regex catches the most c
 
 ### Multi-GPU Setup
 
-For traffic above 10 concurrent users:
+With the Sarvam API handling STT, LLM, and TTS, GPU is no longer required for the primary pipeline. If self-hosting:
 
-1. **GPU-0**: Sarvam-30B via vLLM (tensor parallel across 2 GPUs if needed)
-2. **GPU-1**: Whisper + Embeddings + Reranker + Veena TTS
-3. **Load balancing**: Route text-only queries to a smaller LLM replica if the main one is busy
+1. **GPU-0**: Sarvam-30B via vLLM (set LLM_BACKEND=vllm)
+2. **GPU-1**: Qwen3 embeddings + Qwen3 reranker + faster-whisper
+3. **Load balancing**: Route text-only queries to Groq fallback if primary is busy
 
 ### Weaviate Scaling
 
