@@ -1,6 +1,6 @@
 # VaakSeva
 
-**Self-hosted Hindi voice RAG assistant over WhatsApp for government scheme discovery. Zero commercial API dependencies. Powered by India-made sovereign AI (Sarvam-30B).**
+**Self-hosted Hindi voice RAG assistant over WhatsApp for government scheme discovery. Powered by Sarvam AI's full Indic stack: Saaras V3 STT, Sarvam-30B LLM, and Bulbul v3 TTS.**
 
 "Vaak" = Sanskrit for speech. "Seva" = service.
 
@@ -27,26 +27,27 @@ A WhatsApp bot that accepts Hindi text and voice input, retrieves grounded infor
 User sends: "मेरी उम्र 25 साल है, मैं किसान हूं, कौन सी सरकारी योजनाएं मिल सकती हैं?"
 
 Pipeline:
-  Embed query (Qwen3-Embedding-8B)
+  Embed query (Qwen3-Embedding-0.6B, ~50-100ms on CPU)
     |
   Hybrid retrieval (Weaviate: BM25F + dense, alpha=0.75)
+  top-20 candidates
     |
-  Rerank (Qwen3-Reranker-8B, top-50 -> top-5)
+  Rerank (Qwen3-Reranker-0.6B, top-20 -> top-5, ~200-400ms on CPU)
     |
-  Generate grounded Hindi response (Sarvam-30B via vLLM)
+  Generate grounded Hindi response (Sarvam-30B via hosted API, free)
     |
-  Bot sends: text + Hindi voice note (Veena TTS)
+  Bot sends: text + Hindi voice note (Sarvam Bulbul v3 TTS)
 ```
 
 For voice input:
 ```
-User sends: [60-second Hindi voice note]
+User sends: [30-second Hindi voice note]
   |
-faster-whisper (collabora/whisper-large-v2-hindi, 5.33% WER on FLEURS)
+Sarvam Saaras V3 STT (~19% WER on IndicVoices, beats GPT-4o Transcribe)
   |
 Same RAG pipeline
   |
-Bot sends: text response + playable voice note (Veena TTS)
+Bot sends: text response + playable voice note (Sarvam Bulbul v3 TTS, ~600ms)
 ```
 
 ---
@@ -66,25 +67,24 @@ Baileys (Node.js, WebSocket)
             |
      [Safety Filter]  - Prompt injection defense
             |
-     [Whisper STT]    - collabora Hindi, 5.33% WER  [voice only]
+     [Sarvam Saaras V3]  - Hindi STT API, #1 on IndicVoices  [voice only]
             |
-     [Embedder]       - Qwen3-Embedding-8B / E5-large
+     [Qwen3-Embedding-0.6B]  - Fast on CPU, best multilingual retrieval
             |
-     [Weaviate]       - Hybrid BM25F + dense (alpha=0.75)
-     50 candidates
+     [Weaviate 1.32]  - Hybrid BM25F + dense (alpha=0.75)
+     top-20 candidates
             |
-     [Reranker]       - Qwen3-Reranker-8B
-     -> top 5 chunks
+     [Qwen3-Reranker-0.6B]  - Fast cross-encoder, top-20 -> top-5
             |
      [User Memory]    - Profile + conversation history (JSON files)
             |
-     [LLM]            - Sarvam-30B (vLLM, production)
-                       Sarvam-M (Ollama, development)
+     [Sarvam-30B API] - Free hosted API (primary)
+     [Groq Llama-3.3-70B] - Speed fallback (250-500 tok/s)
             |
      [Output Validator] - Fact-check benefit amounts
             |
-     [Veena TTS]      - maya-research/Veena (production)
-     [Edge TTS]       - Microsoft (development fallback)
+     [Sarvam Bulbul v3]  - Hindi TTS API (~600ms)
+     [Kokoro v1.0 Hindi] - Self-hosted fallback (82M, fast CPU)
             |
      Baileys sends:
        - Text message
@@ -99,25 +99,32 @@ Baileys (Node.js, WebSocket)
 
 ## Tech Stack
 
-| Component | Model / Tool | Source | Purpose | GPU |
-|-----------|-------------|--------|---------|-----|
-| LLM (prod) | Sarvam-30B (Q4_K_M) | sarvamai/sarvam-30b | Hindi-native MoE LLM, 2.4B active/token | 18-20 GB |
-| LLM (dev) | Sarvam-M via Ollama | sarvamai/sarvam-m | Local dev, OpenAI-compat API | CPU |
-| Embeddings | Qwen3-Embedding-8B | Qwen/Qwen3-Embedding-8B | #1 MTEB Multilingual, 70.58 | 4-6 GB |
-| Embeddings (fallback) | multilingual-e5-large | intfloat/multilingual-e5-large-instruct | 560M, CPU-friendly | CPU |
-| Reranker | Qwen3-Reranker-8B | Qwen/Qwen3-Reranker-8B | Cross-encoder, top-50->top-5 | 4-6 GB |
-| Vector DB | Weaviate 1.23 | semitechnologies/weaviate | Native BM25F + dense hybrid | CPU |
-| STT | faster-whisper large-v2-hindi | collabora/faster-whisper-large-v2-hindi | 5.33% WER on Hindi FLEURS | 1-3 GB |
-| TTS (prod) | Veena 3B | maya-research/Veena | Hindi/English/Hinglish, MOS 4.2 | 2-3 GB |
-| TTS (dev) | Edge TTS | Microsoft (edge-tts) | Free fallback, no GPU needed | None |
-| WhatsApp | Baileys 6.x | @whiskeysockets/baileys | WebSocket to WhatsApp Web | None |
-| Backend | FastAPI 0.115 | Python | Pipeline orchestrator | None |
+| Component | Model / Tool | Source | Notes |
+|-----------|-------------|--------|-------|
+| STT (primary) | Sarvam Saaras V3 | Sarvam AI hosted API | #1 Hindi STT, Rs 30/hr, beats GPT-4o on IndicVoices |
+| STT (fallback) | faster-whisper large-v3 | OpenAI / AI4Bharat | Self-hosted, 4+ WER pts better than large-v2 |
+| LLM (primary) | Sarvam-30B | Sarvam AI hosted API | Free as of April 2026, Hindi-native, 63.3% GPQA |
+| LLM (fallback) | Llama-3.3-70B via Groq | Groq LPU | 250-500 tok/s, speed fallback |
+| LLM (self-hosted) | Sarvam-M via Ollama | sarvamai/sarvam-m | CPU dev, OpenAI-compat API |
+| Embeddings | Qwen3-Embedding-0.6B | Qwen/Qwen3-Embedding-0.6B | #1 MTEB Multilingual class, 1024D, fast CPU |
+| Embeddings (legacy) | multilingual-e5-large | intfloat/multilingual-e5-large-instruct | 560M, 1024D, fallback |
+| Reranker | Qwen3-Reranker-0.6B | Qwen/Qwen3-Reranker-0.6B | Enabled by default, ~200-400ms on CPU |
+| Vector DB | Weaviate 1.32 | semitechnologies/weaviate | BlockMax WAND, HNSW snapshots, hybrid BM25F |
+| TTS (primary) | Sarvam Bulbul v3 | Sarvam AI hosted API | CER 0.0173, ~600ms, Rs 30/10K chars |
+| TTS (fallback) | Kokoro v1.0 Hindi | hexgrad/Kokoro-82M | 82M, Apache 2.0, #1 TTS Arena, fast CPU |
+| TTS (emergency) | Edge TTS | Microsoft (edge-tts) | Unofficial endpoint, emergency only |
+| WhatsApp | Baileys 6.x | @whiskeysockets/baileys | WebSocket to WhatsApp Web (see Limitations) |
+| Backend | FastAPI 0.115 | Python | Pipeline orchestrator |
 
-### Why Sarvam-30B
+### Why Sarvam Full Stack
 
-Sarvam-30B is a Mixture-of-Experts model trained from scratch by Sarvam AI on 22 Indian languages. It activates only 2.4B parameters per token, giving it the compute cost of an 8B model while maintaining 30B-scale quality on Hindi. Apache 2.0. This is directly equivalent to what Puch AI uses internally.
+VaakSeva uses Sarvam AI's complete Indic AI stack as of April 2026:
 
-Fallback: `Llama-3.1-8B-Instruct` (Q4_K_M, ~4.9GB) for maximum cost efficiency.
+- **Saaras V3 STT**: Trained on 1M+ hours of Indian audio. Outperforms GPT-4o Transcribe, Deepgram Nova-3, and ElevenLabs Scribe v2 on the IndicVoices benchmark across all 10 major Indian languages. Explicitly designed for code-mixed speech, telephony noise, and rural accents.
+
+- **Sarvam-30B LLM**: Trained from scratch on 16 trillion tokens across 22 Indian languages. Scores 63.3% GPQA vs Llama 3.1 70B at 40.9%. Efficient Mixture-of-Experts architecture (only 2.4B parameters active per token). Currently free via hosted API.
+
+- **Bulbul v3 TTS**: CER of 0.0173, ~600ms generation latency. Production-ready, Hindi-native, multiple speaker voices.
 
 ### Hybrid Retrieval Design
 
@@ -347,11 +354,10 @@ User data is stored with SHA-256 hashed phone numbers (with salt). Files are pur
 
 ## Limitations
 
-- **Baileys is experimental**: Baileys uses WhatsApp Web's private API. It is not an official integration and may break with WhatsApp updates. For production at scale, use the WhatsApp Business Cloud API.
-- **Voice output needs GPU**: Veena TTS requires a GPU. The Edge TTS fallback (Microsoft cloud) is not self-hosted.
+- **Baileys is experimental**: Baileys uses WhatsApp Web's unofficial API. It carries a ban risk and may break with WhatsApp updates. For production deployments serving real users, use the official WhatsApp Business Cloud API (free for 1,000 user-initiated conversations/month in India).
 - **Scheme data is curated**: The knowledge base covers ~15 major central government schemes. State-specific and newer schemes may not be included.
-- **Hindi WER improves with GPU**: Running Whisper on CPU is slower and may have higher error rates. The target 5.33% WER was measured on GPU inference.
-- **No real-time scheme updates**: The vector database is a snapshot. You need to re-run the ingestion pipeline when schemes change.
+- **No real-time scheme updates**: The vector database is a snapshot. Re-run the ingestion pipeline when schemes change.
+- **Sarvam API dependency**: STT, LLM, and TTS all use Sarvam's hosted API. An outage at Sarvam affects all three. Fallbacks (faster-whisper, Groq, Kokoro) activate only when backend is changed via env vars.
 
 ---
 
