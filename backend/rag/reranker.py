@@ -106,7 +106,7 @@ class Qwen3Reranker(BaseReranker):
 
         self._model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            torch_dtype=torch.float32,
+            dtype=torch.float32,
         )
         self._model.eval()
         self._device = device
