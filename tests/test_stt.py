@@ -42,12 +42,13 @@ class TestTranscriptResult:
 
 class TestSTTFactory:
     def test_get_stt_returns_instance(self):
-        from backend.voice.stt import WhisperHindiSTT
-        with patch("backend.voice.stt.WhisperModel") as mock_model:
-            mock_model.return_value = MagicMock()
-            from backend.voice.stt import get_stt
-            # Can't instantiate without actual model downloads, but factory exists
-            assert callable(get_stt)
+        # SarvamSTT is the default backend; verify factory is callable
+        # WhisperHindiSTT lazy-imports faster_whisper.WhisperModel inside __init__
+        # so no module-level mock needed
+        from backend.voice.stt import get_stt, SarvamSTT, WhisperHindiSTT
+        assert callable(get_stt)
+        assert issubclass(SarvamSTT, object)
+        assert issubclass(WhisperHindiSTT, object)
 
 
 class TestAudioUtils:

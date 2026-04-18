@@ -78,7 +78,7 @@ _ENCODING_ARTIFACTS = [
     (re.compile(r"â€™"), "'"),
     (re.compile(r"â€œ"), "\u201c"),
     (re.compile(r"â€\x9d"), "\u201d"),
-    (re.compile(r"â€""), "\u2013"),
+    (re.compile(r"â€\x93"), "\u2013"),
     (re.compile(r"\xa0"), " "),
 ]
 
