@@ -9,14 +9,18 @@ Default backend: Qwen3-Reranker-0.6B (enabled by default)
   - Still outperforms no-reranking on MTEB multilingual reranking benchmarks
   - Supports 100+ languages including Hindi
 
+Implementation note:
+  Qwen3-Reranker-0.6B is a CausalLM (text-generation), NOT a seq-classifier.
+  The correct scoring approach is:
+    - Feed (query, passage) as a prompt
+    - Look at the logit for token '1' vs '0' at the final position
+  We implement this directly with transformers (AutoModelForCausalLM)
+  to avoid sentence-transformers version compatibility issues.
+
 Why NOT Qwen3-Reranker-8B in production:
   - 8B cross-encoder on CPU adds 2-5 seconds per request
   - This single component would blow the 6-second end-to-end budget
   - 0.6B is the practical sweet spot for CPU deployment
-
-Alternative: Cohere Rerank v3.5 API (~50-100ms, ~$2/1000 searches)
-  - If you need 8B-quality reranking within latency budget
-  - Set RERANKER_BACKEND=cohere (future implementation)
 """
 
 from __future__ import annotations
@@ -24,6 +28,8 @@ from __future__ import annotations
 import logging
 import time
 from abc import ABC, abstractmethod
+
+import torch
 
 from backend.config import settings
 from backend.models.schemas import RetrievedChunk
@@ -57,31 +63,91 @@ class BaseReranker(ABC):
 
 class Qwen3Reranker(BaseReranker):
     """
-    Cross-encoder reranker using Qwen3-Reranker-0.6B (default).
+    Qwen3-Reranker-0.6B implemented directly via transformers.
 
-    The model scores (query, passage) pairs and returns a relevance score.
-    We pass all top-20 candidates and return the top_k by score.
+    Qwen3-Reranker is a CausalLM (text-generation) that scores relevance by
+    comparing the output logits for '1' (relevant) vs '0' (not relevant)
+    at the final token position. This is NOT a sequence classifier.
 
-    CPU latency (0.6B, top-20 candidates): ~200-400ms
-    CPU latency (8B, top-20 candidates): ~2000-5000ms -- too slow for pipeline
+    We implement scoring directly with AutoModelForCausalLM to avoid
+    sentence-transformers version/platform compatibility issues.
 
-    To use 8B for better quality: set QWEN3_RERANKER_MODEL=Qwen/Qwen3-Reranker-8B
+    Prompt format expected by the model:
+      <|im_start|>user\n{query}\n{passage}<|im_end|>\n<|im_start|>assistant\n
+
+    CPU latency (0.6B, 20 candidates, batch_size=4): ~200-600ms
     """
 
+    # Qwen3-Reranker chat template for (query, passage) pairs
+    _TEMPLATE = (
+        "<|im_start|>user\n"
+        "Given a query and a passage, judge whether the passage is relevant "
+        "to the query. Answer '1' if relevant, '0' if not.\n"
+        "Query: {query}\nPassage: {passage}"
+        "<|im_end|>\n<|im_start|>assistant\n"
+    )
+
     def __init__(self, model_name: str | None = None, device: str | None = None):
-        from sentence_transformers import CrossEncoder
+        from transformers import AutoModelForCausalLM, AutoTokenizer
 
         model_name = model_name or settings.qwen3_reranker_model
         device = device or settings.reranker_device
 
         logger.info("Loading Qwen3 reranker: %s on %s", model_name, device)
-        self._model = CrossEncoder(
+
+        self._tokenizer = AutoTokenizer.from_pretrained(
             model_name,
-            device=device,
+            padding_side="left",
             trust_remote_code=True,
-            max_length=256,  # sufficient for scheme document chunks
         )
-        logger.info("Qwen3 reranker ready (model=%s)", model_name)
+        # Qwen3 has no pad token by default; use eos
+        if self._tokenizer.pad_token is None:
+            self._tokenizer.pad_token = self._tokenizer.eos_token
+
+        self._model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            torch_dtype=torch.float32,
+        )
+        self._model.eval()
+        self._device = device
+
+        # Cache token IDs for '1' and '0'
+        self._true_id = self._tokenizer.convert_tokens_to_ids("1")
+        self._false_id = self._tokenizer.convert_tokens_to_ids("0")
+
+        logger.info(
+            "Qwen3 reranker ready (model=%s, true=%d, false=%d)",
+            model_name, self._true_id, self._false_id,
+        )
+
+    def _score_pairs(self, query: str, passages: list[str]) -> list[float]:
+        """Score (query, passage) pairs. Returns relevance score per passage."""
+        prompts = [
+            self._TEMPLATE.format(query=query, passage=p)
+            for p in passages
+        ]
+
+        inputs = self._tokenizer(
+            prompts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=512,
+        )
+
+        with torch.no_grad():
+            outputs = self._model(**inputs)
+
+        # Last token logits for '1' vs '0'
+        last_logits = outputs.logits[:, -1, :]  # (batch, vocab)
+        true_logits = last_logits[:, self._true_id]   # (batch,)
+        false_logits = last_logits[:, self._false_id]  # (batch,)
+
+        # Softmax to get P(relevant) in [0, 1]
+        stacked = torch.stack([false_logits, true_logits], dim=-1)  # (batch, 2)
+        probs = torch.softmax(stacked, dim=-1)
+        scores = probs[:, 1].tolist()  # P('1' = relevant)
+        return scores
 
     def rerank(
         self,
@@ -94,8 +160,8 @@ class Qwen3Reranker(BaseReranker):
 
         t0 = time.perf_counter()
 
-        pairs = [(query, chunk.content) for chunk in chunks]
-        scores = self._model.predict(pairs)
+        passages = [chunk.content for chunk in chunks]
+        scores = self._score_pairs(query, passages)
 
         scored = sorted(
             zip(scores, chunks),

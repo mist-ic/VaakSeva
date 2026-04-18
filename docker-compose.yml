@@ -16,7 +16,7 @@ services:
       - RERANKER_BACKEND=${RERANKER_BACKEND:-noop}
       - TTS_BACKEND=${TTS_BACKEND:-edge}
       - WEAVIATE_HOST=weaviate
-      - WEAVIATE_PORT=8081
+      - WEAVIATE_PORT=8080
       - WEAVIATE_GRPC_PORT=50051
       - REDIS_URL=redis://redis:6379
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
@@ -40,7 +40,7 @@ services:
     image: semitechnologies/weaviate:1.32.4
     container_name: vaakseva-weaviate
     ports:
-      - "8081:8081"
+      - "7700:8080"
       - "50051:50051"
     environment:
       QUERY_DEFAULTS_LIMIT: "25"
@@ -49,7 +49,6 @@ services:
       DEFAULT_VECTORIZER_MODULE: "none"
       CLUSTER_HOSTNAME: "node1"
       GRPC_PORT: "50051"
-      PORT: "8081"
     volumes:
       - weaviate_data:/var/lib/weaviate
     restart: unless-stopped

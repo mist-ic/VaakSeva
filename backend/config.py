@@ -125,7 +125,7 @@ class Settings(BaseSettings):
     # Weaviate
     # -------------------------------------------------------------------------
     weaviate_host: str = "localhost"
-    weaviate_port: int = 8080
+    weaviate_port: int = 7700
     weaviate_grpc_port: int = 50051
     weaviate_collection: str = "GovernmentSchemes"
 
