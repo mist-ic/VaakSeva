@@ -7,8 +7,8 @@ python-multipart==0.0.20
 pydantic==2.10.4
 pydantic-settings==2.7.0
 
-# Vector database
-weaviate-client==4.10.2
+# Vector database (Weaviate 1.32 compatible)
+weaviate-client==4.16.0
 
 # Embeddings and ML
 sentence-transformers==3.4.1
@@ -16,10 +16,14 @@ torch==2.5.1
 transformers==4.48.3
 numpy==1.26.4
 
-# Speech-to-text
+# Speech-to-text (self-hosted fallback)
 faster-whisper==1.1.1
 
-# Text-to-speech (dev fallback)
+# Text-to-speech: Sarvam Bulbul v3 (primary via API)
+# Text-to-speech: Kokoro v1.0 (self-hosted fallback)
+kokoro>=1.0.0
+
+# Edge TTS (emergency fallback)
 edge-tts==7.0.2
 
 # Audio processing
@@ -31,7 +35,7 @@ librosa==0.10.2
 pdfplumber==0.11.4
 pypdf2==3.0.1
 
-# HTTP client
+# HTTP client (used by Sarvam API and Groq clients)
 httpx==0.28.1
 aiohttp==3.11.11
 
