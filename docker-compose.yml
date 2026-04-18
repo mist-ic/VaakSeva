@@ -37,7 +37,7 @@ services:
       retries: 3
 
   weaviate:
-    image: semitechnologies/weaviate:1.23.9
+    image: semitechnologies/weaviate:1.32.4
     container_name: vaakseva-weaviate
     ports:
       - "8081:8081"
