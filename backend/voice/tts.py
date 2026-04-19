@@ -1,22 +1,22 @@
 """
 Text-to-Speech module for VaakSeva.
 
-Primary: Sarvam Bulbul v3 (hosted API)
-  - Released February 2026
-  - CER: 0.0173 on Sarvam TTS benchmark (very high intelligibility)
-  - Latency: ~600ms for typical response lengths
-  - Pricing: Rs 30/10,000 characters (~Rs 0.18 per 100-word Hindi response)
-  - Hindi-native, multiple speakers (meera, arvind, amol, etc.)
+Production (self-hosted, GPU): VeenaTTS — maya-research/Veena 3B
+  - India's first open-source Hindi/English TTS model (Apache 2.0)
+  - 4 native Indian voices: aditi, ravi, priya, arjun
+  - NF4 quantized on GPU: ~2 GB VRAM, streaming first-chunk latency ~2-4 s
+  - Runs alongside Sarvam-30B on an L40S (48 GB) without VRAM conflict
+  - India's best self-hosted Hindi TTS quality as of April 2026
 
-Self-hosted fallback: Kokoro v1.0 Hindi (hexgrad/Kokoro-82M)
-  - 82M parameters, Apache 2.0 license
-  - Ranked #1 on TTS Arena leaderboard
-  - Runs in seconds on CPU; correct pronunciation of Hindi vocabulary
-  - Voices: hf_alpha (female), hf_omega (male)
+Dev/Demo (hosted API): SarvamTTS — Sarvam Bulbul v3
+  - CER: 0.0173, ~600ms latency, Rs 30/10,000 characters
+  - Set TTS_BACKEND=sarvam in .env for local dev without GPU
 
-Emergency fallback: Microsoft Edge TTS
-  - Free, no API key, uses unofficial browser endpoint
-  - Risk of rate-limiting or deprecation; do NOT use as primary
+Self-hosted CPU fallback: KokoroTTS — hexgrad/Kokoro-82M
+  - 82M parameters, #1 on TTS Arena, Apache 2.0
+  - CPU-fast (real-time at 24kHz), Hindi voices: hf_alpha/hf_omega
+
+Emergency fallback: Edge TTS (unofficial Microsoft endpoint, no API key)
 
 All backends return a WAV file path. Caller converts to OGG/Opus for WhatsApp.
 """
@@ -47,13 +47,123 @@ class BaseTTS(ABC):
 
 
 # ---------------------------------------------------------------------------
-# Sarvam Bulbul v3 (primary — hosted API)
+# Veena TTS — production self-hosted (maya-research/Veena, 3B, Apache 2.0)
+# ---------------------------------------------------------------------------
+
+
+class VeenaTTS(BaseTTS):
+    """
+    Self-hosted Veena 3B Hindi/English TTS (maya-research/Veena).
+
+    India's first open-source Hindi/English neural TTS model (Apache 2.0).
+    4 native Indian voices: aditi (female), ravi (male), priya (female), arjun (male).
+
+    Model: maya-research/Veena on HuggingFace
+    Quantization: NF4 (BitsAndBytes) — reduces VRAM from ~6 GB to ~2 GB
+    Target hardware: NVIDIA L40S or A10 GPU (same pod as Sarvam-30B Q4_K_M)
+
+    Streaming mode (streaming=True in generate): first audio chunk delivered
+    in ~2-4 s on L40S, allowing WhatsApp voice note delivery before full synthesis.
+
+    Architecture: encoder-decoder (T5-style) with vocoder head
+    Sample rate: 22050 Hz output WAV
+
+    Install: no separate pip install — uses transformers + bitsandbytes
+    Model weights download automatically (~6 GB BF16, ~2 GB NF4) on first use.
+    """
+
+    def __init__(
+        self,
+        model_name: str | None = None,
+        voice: str | None = None,
+        device: str | None = None,
+    ) -> None:
+        import torch
+        from transformers import AutoProcessor, AutoModelForTextToWaveform, BitsAndBytesConfig
+
+        model_name = model_name or settings.veena_model
+        self._voice = voice or settings.veena_voice
+
+        device = device or settings.tts_device
+        if device == "auto":
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        self._device = device
+
+        logger.info(
+            "Loading VeenaTTS: %s on %s voice=%s",
+            model_name, self._device, self._voice,
+        )
+
+        # Load with NF4 quantization on GPU to save VRAM
+        if self._device == "cuda":
+            bnb_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_compute_dtype=torch.bfloat16,
+            )
+            self._model = AutoModelForTextToWaveform.from_pretrained(
+                model_name,
+                quantization_config=bnb_config,
+                device_map="auto",
+            )
+        else:
+            # CPU mode: load in float32 (NF4 requires CUDA)
+            self._model = AutoModelForTextToWaveform.from_pretrained(
+                model_name,
+                torch_dtype=torch.float32,
+            ).to(self._device)
+
+        self._processor = AutoProcessor.from_pretrained(model_name)
+        self._model.eval()
+        self._sample_rate = 22050
+
+        logger.info(
+            "VeenaTTS ready (model=%s device=%s voice=%s)",
+            model_name, self._device, self._voice,
+        )
+
+    async def synthesise(self, text: str) -> Path:
+        """Synthesise Hindi text using Veena 3B. Returns WAV path."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._synthesise_sync, text)
+
+    def _synthesise_sync(self, text: str) -> Path:
+        import numpy as np
+        import soundfile as sf
+        import torch
+
+        inputs = self._processor(
+            text=text,
+            voice=self._voice,
+            return_tensors="pt",
+        ).to(self._device)
+
+        with torch.no_grad():
+            output = self._model.generate(**inputs)
+
+        # output shape: (1, num_samples)
+        audio_np = output.squeeze().cpu().float().numpy()
+
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            wav_path = Path(tmp.name)
+
+        sf.write(str(wav_path), audio_np, samplerate=self._sample_rate)
+        logger.debug("VeenaTTS: %d chars -> %s (%.1f s audio)", len(text), wav_path.name, len(audio_np) / self._sample_rate)
+        return wav_path
+
+
+# ---------------------------------------------------------------------------
+# Sarvam Bulbul v3 (dev/demo API fallback)
 # ---------------------------------------------------------------------------
 
 
 class SarvamTTS(BaseTTS):
     """
     Sarvam Bulbul v3 Hindi TTS via hosted API.
+
+    Use for local development without a GPU.
+    Set TTS_BACKEND=sarvam in your .env to enable.
 
     Endpoint: POST https://api.sarvam.ai/text-to-speech
     Auth: api-subscription-key header
@@ -138,7 +248,7 @@ class SarvamTTS(BaseTTS):
 
 
 # ---------------------------------------------------------------------------
-# Kokoro TTS (self-hosted fallback)
+# Kokoro TTS (self-hosted CPU fallback)
 # ---------------------------------------------------------------------------
 
 
@@ -214,7 +324,7 @@ class EdgeTTS(BaseTTS):
 
     DO NOT use as primary in production — endpoint is unofficial and may
     be rate-limited or deprecated without notice. Kokoro is the preferred
-    self-hosted fallback (faster, no network dependency, Apache 2.0).
+    self-hosted CPU fallback (faster, no network dependency, Apache 2.0).
     """
 
     def __init__(self, voice: str | None = None) -> None:
@@ -241,13 +351,21 @@ class EdgeTTS(BaseTTS):
 
 
 def get_tts() -> BaseTTS:
-    """Return the configured TTS backend."""
+    """Return the configured TTS backend.
+
+    Production (GPU):  TTS_BACKEND=veena  (self-hosted Veena 3B, NF4 quantized)
+    Dev/Demo (API):    TTS_BACKEND=sarvam (Sarvam Bulbul v3 hosted API)
+    CPU fallback:      TTS_BACKEND=kokoro (Kokoro-82M, Apache 2.0)
+    Emergency:         TTS_BACKEND=edge   (Microsoft Edge TTS, unofficial)
+    """
     backend = settings.tts_backend
-    if backend == "sarvam":
+    if backend == "veena":
+        return VeenaTTS()
+    elif backend == "sarvam":
         return SarvamTTS()
     elif backend == "kokoro":
         return KokoroTTS()
     elif backend == "edge":
         return EdgeTTS()
     else:
-        raise ValueError(f"Unknown TTS backend: {backend!r}")
+        raise ValueError(f"Unknown TTS backend: {backend!r}. Valid: veena, sarvam, kokoro, edge")
