@@ -73,9 +73,12 @@ class Qwen3Embedder(BaseEmbedder):
 
     def __init__(self, model_name: str | None = None, device: str | None = None):
         from sentence_transformers import SentenceTransformer
+        import torch
 
         model_name = model_name or settings.qwen3_embed_model
         device = device or settings.embed_device
+        if device == "auto":
+            device = "cuda" if torch.cuda.is_available() else "cpu"
 
         logger.info("Loading Qwen3 embedder: %s on %s", model_name, device)
         self._model = SentenceTransformer(
