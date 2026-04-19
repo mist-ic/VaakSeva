@@ -39,15 +39,23 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # LLM
     # -------------------------------------------------------------------------
-    llm_backend: Literal["sarvam", "groq", "ollama", "vllm"] = "sarvam"
+    # Production (GPU): sglang (self-hosted Sarvam-30B via SGLang)
+    # Dev (API):        sarvam | groq
+    # Dev (CPU):        ollama
+    llm_backend: Literal["sglang", "vllm", "ollama", "sarvam", "groq"] = "sglang"
 
-    # Sarvam-30B (free hosted API as of April 2026, Hindi-native)
+    # SGLang (production primary) — exposes OpenAI-compatible API
+    # Start: python -m sglang.launch_server --model-path /models/sarvam-30b-q4_k_m.gguf --port 8080
+    sglang_base_url: str = "http://localhost:8080"
+    sglang_model: str = "sarvam-30b"   # model name as registered with SGLang
+
+    # Sarvam-30B (Apache 2.0, MoE: 32B total / 2.4B active, Hindi-native)
     sarvam_llm_model: str = "sarvam-30b"
 
     # Self-hosted fallbacks
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "sarvam-m:latest"
-    vllm_base_url: str = "http://localhost:8000"
+    vllm_base_url: str = "http://localhost:8001"
     vllm_model: str = "sarvamai/sarvam-30b"
 
     llm_temperature: float = 0.1
@@ -61,42 +69,42 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # Embeddings
     # -------------------------------------------------------------------------
+    # Production (GPU): Qwen3-Embedding-8B (#1 MTEB Multilingual, 16GB FP16 / 8GB INT8)
+    # Dev (CPU):        Qwen3-Embedding-0.6B (1.2GB, still outperforms mE5-large)
+    # Switch via: QWEN3_EMBED_MODEL=Qwen/Qwen3-Embedding-0.6B in .env for local dev
     embedder_backend: Literal["qwen3", "e5"] = "qwen3"
-
-    # Qwen3-Embedding-0.6B: outperforms multilingual-e5-large-instruct,
-    # fast on CPU (~50-100ms at query time), 1024D embeddings
-    qwen3_embed_model: str = "Qwen/Qwen3-Embedding-0.6B"
-
-    # For offline document indexing (better quality, optional override):
-    # set QWEN3_EMBED_MODEL=Qwen/Qwen3-Embedding-8B during ingestion
+    qwen3_embed_model: str = "Qwen/Qwen3-Embedding-8B"
     e5_embed_model: str = "intfloat/multilingual-e5-large-instruct"
 
     embed_batch_size: int = 32
-    embed_device: str = "cpu"
+    embed_device: str = "auto"   # auto = cuda if available, else cpu
 
     # -------------------------------------------------------------------------
     # Reranker
     # -------------------------------------------------------------------------
-    # Qwen3-Reranker-0.6B: fast on CPU, MTEB multilingual reranking top performer
-    # 8B variant (Qwen/Qwen3-Reranker-8B) adds 2-5s on CPU, unacceptable
+    # Production (GPU): Qwen3-Reranker-8B (#1 MTEB Multilingual reranking, INT8 ~8GB)
+    # Dev (CPU):        Qwen3-Reranker-0.6B or noop (noop = no reranking)
+    # Switch via: RERANKER_BACKEND=noop or QWEN3_RERANKER_MODEL=Qwen/Qwen3-Reranker-0.6B
     reranker_backend: Literal["qwen3", "noop"] = "qwen3"
-    qwen3_reranker_model: str = "Qwen/Qwen3-Reranker-0.6B"
-    reranker_device: str = "cpu"
+    qwen3_reranker_model: str = "Qwen/Qwen3-Reranker-8B"
+    reranker_device: str = "auto"  # auto = cuda if available, else cpu
 
     # -------------------------------------------------------------------------
     # STT
     # -------------------------------------------------------------------------
-    # Sarvam Saaras V3: #1 on IndicVoices Hindi benchmark, beats GPT-4o
-    # Whisper fallback: large-v3 (upgraded from large-v2, 4+ WER points better)
-    stt_backend: Literal["sarvam", "whisper"] = "sarvam"
+    # Production (self-hosted): collabora/faster-whisper-large-v2-hindi (5.33% WER on Hindi)
+    # Dev (API):                sarvam (Saaras V3, best Hindi STT but external API)
+    # Switch via: STT_BACKEND=sarvam in .env for dev mode
+    stt_backend: Literal["whisper", "sarvam"] = "whisper"
 
-    # Sarvam STT config
+    # Sarvam STT config (dev/demo fallback)
     sarvam_stt_model: str = "saaras:v3"
     sarvam_stt_language: str = "hi-IN"
 
-    # Whisper fallback config
-    stt_model: str = "large-v3"          # upgraded from large-v2
-    stt_device: str = "cpu"
+    # Whisper config (production primary)
+    # collabora/faster-whisper-large-v2-hindi: 5.33% WER on Hindi FLEURS (best open-source)
+    stt_model: str = "large-v3"          # use large-v3 for general; see ARCHITECTURE.md
+    stt_device: str = "auto"  # auto = cuda if available, else cpu
     stt_compute_type: str = "int8"
     stt_language: str = "hi"
     stt_language_threshold: float = 0.7
@@ -104,22 +112,29 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # TTS
     # -------------------------------------------------------------------------
-    # Sarvam Bulbul v3: CER 0.0173, ~600ms latency, production-ready Hindi TTS
-    # Kokoro fallback: 82M params, Apache 2.0, #1 TTS Arena, fast on CPU
-    # Edge TTS: emergency fallback only (unofficial endpoint)
-    tts_backend: Literal["sarvam", "kokoro", "edge"] = "sarvam"
+    # Production (GPU):   veena  — maya-research/Veena 3B NF4 (self-hosted, Apache 2.0)
+    # Dev/Demo (API):     sarvam — Sarvam Bulbul v3 (hosted API, needs SARVAM_API_KEY)
+    # CPU fallback:       kokoro — Kokoro-82M (#1 TTS Arena, Apache 2.0, fast on CPU)
+    # Emergency fallback: edge   — Microsoft Edge TTS (unofficial endpoint)
+    tts_backend: Literal["veena", "kokoro", "sarvam", "edge"] = "veena"
 
-    # Sarvam Bulbul v3 config
+    # Veena 3B config (production primary — self-hosted on GPU)
+    # maya-research/Veena: India's first open-source Hindi/English TTS, Apache 2.0
+    # Voices: aditi (female), ravi (male), priya (female), arjun (male)
+    veena_model: str = "maya-research/Veena"
+    veena_voice: str = "aditi"              # aditi = Hindi female (default)
+
+    # Sarvam Bulbul v3 config (dev/demo fallback)
     sarvam_tts_model: str = "bulbul:v3"
     sarvam_tts_speaker: str = "priya"       # Hindi female; verified with bulbul:v3
 
-    # Kokoro config
+    # Kokoro config (CPU fallback)
     kokoro_voice: str = "hf_alpha"          # hf_alpha = Hindi female, hf_omega = male
 
-    # Edge TTS config (fallback)
+    # Edge TTS config (emergency fallback only)
     edge_tts_voice: str = "hi-IN-MadhurNeural"
 
-    tts_device: str = "cpu"
+    tts_device: str = "auto"  # auto = cuda if available, else cpu
 
     # -------------------------------------------------------------------------
     # Weaviate
@@ -171,10 +186,15 @@ class Settings(BaseSettings):
     allowed_origins: list[str] = ["*"]
 
     # -------------------------------------------------------------------------
-    # GCP
+    # Deployment
     # -------------------------------------------------------------------------
+    # GCP project (used for logging, monitoring)
     gcp_project_id: str = "revsight-492123"
     gcp_region: str = "asia-south1"
+
+    # GPU pod model directory (Vast.ai / RunPod / Lambda Labs)
+    # Mount point: bind-mount /models volume in docker-compose.yml
+    model_dir: str = "/models"
 
     # -------------------------------------------------------------------------
     # Derived paths (not from env)

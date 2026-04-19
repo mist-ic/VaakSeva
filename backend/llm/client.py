@@ -2,13 +2,20 @@
 LLM client for VaakSeva.
 
 Backends (in order of preference for production):
-  1. SarvamLLMClient  - Sarvam-30B via hosted API (free April 2026, Hindi-native)
-  2. GroqLLMClient    - Llama-3.3-70B via Groq LPU (250-500 tok/s, speed fallback)
-  3. VLLMClient       - self-hosted vLLM (production GPU deployment)
-  4. OllamaClient     - local Ollama (CPU development)
+  1. SGLangClient   - Sarvam-30B via self-hosted SGLang (production GPU, recommended)
+  2. VLLMClient     - Sarvam-30B via self-hosted vLLM (production GPU, alternative)
+  3. OllamaClient   - local Ollama (CPU development, no GPU needed)
+  4. SarvamLLMClient - Sarvam-30B via hosted API (dev/demo only, free April 2026)
+  5. GroqLLMClient  - Llama-3.3-70B via Groq LPU (speed fallback, 250-500 tok/s)
 
 All backends implement BaseLLMClient and use OpenAI-compatible /v1/chat/completions.
 Switching between backends is a one-line config change (LLM_BACKEND env var).
+
+Why SGLang over vLLM for production:
+  - RadixAttention caches repeated RAG context prefixes → 29% higher throughput
+  - Better MoE routing for Sarvam-30B (expert-parallel aware)
+  - 3.1x faster than vLLM on MoE models in benchmarks (April 2026)
+  - Same OpenAI-compatible API — zero code changes required
 """
 
 from __future__ import annotations
@@ -222,17 +229,68 @@ class VLLMClient(BaseLLMClient):
     Client for a self-hosted vLLM server running Sarvam-30B.
 
     vLLM provides 3-5x higher throughput than Ollama via PagedAttention.
-    Use for production GPU deployments where API latency is not acceptable.
+    Alternative to SGLang — use if SGLang causes issues on your hardware.
 
     Run:
       python -m vllm.entrypoints.openai.api_server \\
-        --model sarvamai/sarvam-30b --port 8000
+        --model sarvamai/sarvam-30b --port 8001
     """
 
     def __init__(self) -> None:
         self._base_url = settings.vllm_base_url
         self._model = settings.vllm_model
         logger.info("vLLM client: %s @ %s", self._model, self._base_url)
+
+    async def agenerate(self, prompt: str, system: str | None = None) -> str:
+        from backend.llm.prompts import SYSTEM_PROMPT
+
+        messages = [
+            {"role": "system", "content": system or SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ]
+        return await _openai_chat_complete(
+            base_url=self._base_url,
+            model=self._model,
+            messages=messages,
+            temperature=settings.llm_temperature,
+            top_p=settings.llm_top_p,
+            max_tokens=settings.llm_max_tokens,
+            timeout=settings.llm_timeout_s,
+            max_retries=settings.llm_max_retries,
+        )
+
+    async def astream(self, prompt: str, system: str | None = None) -> AsyncIterator[str]:
+        response = await self.agenerate(prompt, system)
+        yield response
+
+
+# ---------------------------------------------------------------------------
+# SGLang client (production primary — self-hosted Sarvam-30B)
+# ---------------------------------------------------------------------------
+
+
+class SGLangClient(BaseLLMClient):
+    """
+    Client for a self-hosted SGLang server running Sarvam-30B.
+
+    SGLang is the recommended production serving framework for Sarvam-30B:
+    - RadixAttention caches RAG context prefixes → 29% higher throughput vs vLLM
+    - Expert-parallel MoE routing → 3.1x faster than vLLM on MoE models
+    - OpenAI-compatible API — identical interface to vLLM/Ollama
+
+    Target hardware: RunPod L40S (48 GB) or Vast.ai A10 (24 GB)
+    Model: sarvamai/sarvam-30b Q4_K_M GGUF (~19 GB on A10, Q6_K ~26 GB on L40S)
+
+    Start server:
+      python -m sglang.launch_server \\
+        --model-path /models/sarvam-30b-q4_k_m.gguf \\
+        --port 8080 --host 0.0.0.0
+    """
+
+    def __init__(self) -> None:
+        self._base_url = settings.sglang_base_url
+        self._model = settings.sglang_model
+        logger.info("SGLang client: %s @ %s", self._model, self._base_url)
 
     async def agenerate(self, prompt: str, system: str | None = None) -> str:
         from backend.llm.prompts import SYSTEM_PROMPT
@@ -310,13 +368,15 @@ class OllamaClient(BaseLLMClient):
 def get_llm_client() -> BaseLLMClient:
     """Return the configured LLM client."""
     backend = settings.llm_backend
-    if backend == "sarvam":
-        return SarvamLLMClient()
-    elif backend == "groq":
-        return GroqLLMClient()
+    if backend == "sglang":
+        return SGLangClient()
     elif backend == "vllm":
         return VLLMClient()
     elif backend == "ollama":
         return OllamaClient()
+    elif backend == "sarvam":
+        return SarvamLLMClient()
+    elif backend == "groq":
+        return GroqLLMClient()
     else:
-        raise ValueError(f"Unknown LLM backend: {backend!r}")
+        raise ValueError(f"Unknown LLM backend: {backend!r}. Valid: sglang, vllm, ollama, sarvam, groq")
