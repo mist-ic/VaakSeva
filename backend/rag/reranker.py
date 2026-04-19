@@ -89,9 +89,12 @@ class Qwen3Reranker(BaseReranker):
 
     def __init__(self, model_name: str | None = None, device: str | None = None):
         from transformers import AutoModelForCausalLM, AutoTokenizer
+        import torch
 
         model_name = model_name or settings.qwen3_reranker_model
         device = device or settings.reranker_device
+        if device == "auto":
+            device = "cuda" if torch.cuda.is_available() else "cpu"
 
         logger.info("Loading Qwen3 reranker: %s on %s", model_name, device)
 
@@ -104,11 +107,16 @@ class Qwen3Reranker(BaseReranker):
         if self._tokenizer.pad_token is None:
             self._tokenizer.pad_token = self._tokenizer.eos_token
 
+        # Use bfloat16 on GPU (2x memory savings, same quality as float32)
+        # float32 on CPU (bfloat16 has no CPU hardware acceleration)
+        dtype = torch.bfloat16 if device != "cpu" else torch.float32
+
         self._model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            dtype=torch.float32,
+            dtype=dtype,
         )
         self._model.eval()
+        self._model = self._model.to(device)  # GPU placement (was missing!)
         self._device = device
 
         # Cache token IDs for '1' and '0'
@@ -116,8 +124,8 @@ class Qwen3Reranker(BaseReranker):
         self._false_id = self._tokenizer.convert_tokens_to_ids("0")
 
         logger.info(
-            "Qwen3 reranker ready (model=%s, true=%d, false=%d)",
-            model_name, self._true_id, self._false_id,
+            "Qwen3 reranker ready (model=%s device=%s dtype=%s true=%d false=%d)",
+            model_name, device, dtype, self._true_id, self._false_id,
         )
 
     def _score_pairs(self, query: str, passages: list[str]) -> list[float]:
@@ -134,6 +142,8 @@ class Qwen3Reranker(BaseReranker):
             truncation=True,
             max_length=512,
         )
+        # Move input tensors to device (GPU if available)
+        inputs = {k: v.to(self._device) for k, v in inputs.items()}
 
         with torch.no_grad():
             outputs = self._model(**inputs)
