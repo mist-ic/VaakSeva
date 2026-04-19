@@ -1,29 +1,82 @@
-version: "3.9"
-
 services:
+  # ---------------------------------------------------------------------------
+  # VaakSeva FastAPI backend
+  # ---------------------------------------------------------------------------
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        CUDA_BASE: ${CUDA_BASE:-cuda}
     container_name: vaakseva-backend
     ports:
       - "8080:8080"
     environment:
-      - LLM_BACKEND=${LLM_BACKEND:-ollama}
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-sarvam-m:latest}
-      - EMBEDDER_BACKEND=${EMBEDDER_BACKEND:-e5}
-      - RERANKER_BACKEND=${RERANKER_BACKEND:-noop}
-      - TTS_BACKEND=${TTS_BACKEND:-edge}
+      # LLM: sglang = self-hosted Sarvam-30B via SGLang (production)
+      #      sarvam  = Sarvam API (dev/demo, needs SARVAM_API_KEY)
+      #      groq    = Groq Llama-3.3-70B (speed fallback, needs GROQ_API_KEY)
+      - LLM_BACKEND=${LLM_BACKEND:-sglang}
+      - SGLANG_BASE_URL=${SGLANG_BASE_URL:-http://sglang:8081}
+      - SGLANG_MODEL=${SGLANG_MODEL:-sarvam-30b}
+      - SARVAM_API_KEY=${SARVAM_API_KEY:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+
+      # STT: whisper = faster-whisper large-v2-hindi (self-hosted, production)
+      #      sarvam  = Sarvam Saaras V3 API (dev fallback, needs SARVAM_API_KEY)
+      - STT_BACKEND=${STT_BACKEND:-whisper}
+      - STT_DEVICE=auto
+      - STT_COMPUTE_TYPE=int8
+
+      # TTS: veena  = maya-research/Veena 3B NF4 (self-hosted, production)
+      #      sarvam  = Sarvam Bulbul v3 API (dev fallback)
+      #      kokoro  = Kokoro-82M CPU (CPU-only environment)
+      - TTS_BACKEND=${TTS_BACKEND:-veena}
+      - TTS_DEVICE=auto
+      - VEENA_VOICE=${VEENA_VOICE:-aditi}
+
+      # Embeddings: Qwen3-Embedding-8B (self-hosted GPU) or 0.6B (CPU)
+      - EMBEDDER_BACKEND=${EMBEDDER_BACKEND:-qwen3}
+      - QWEN3_EMBED_MODEL=${QWEN3_EMBED_MODEL:-Qwen/Qwen3-Embedding-8B}
+      - EMBED_DEVICE=auto
+
+      # Reranker: Qwen3-Reranker-8B (#1 MTEB multilingual reranking)
+      - RERANKER_BACKEND=${RERANKER_BACKEND:-qwen3}
+      - QWEN3_RERANKER_MODEL=${QWEN3_RERANKER_MODEL:-Qwen/Qwen3-Reranker-8B}
+      - RERANKER_DEVICE=auto
+
+      # Weaviate (connects to internal service)
       - WEAVIATE_HOST=weaviate
       - WEAVIATE_PORT=8080
       - WEAVIATE_GRPC_PORT=50051
+
+      # Redis
       - REDIS_URL=redis://redis:6379
+
+      # RAG
+      - TOP_K_RETRIEVAL=20
+      - TOP_K_RERANK=5
+      - HYBRID_ALPHA=0.75
+
+      # Misc
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - PHONE_HASH_SALT=${PHONE_HASH_SALT:-change-this}
+
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
+      # Model weights: bind-mount your downloaded GGUF / HF models here
+      - ${MODEL_DIR:-./models}:/models
+
+    # GPU access — required for Veena TTS, Whisper, embedder, and reranker
+    # Comment out deploy.resources if running CPU-only (dev mode)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
     depends_on:
       weaviate:
         condition: service_started
@@ -34,8 +87,55 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      start_period: 120s
+      retries: 5
 
+  # ---------------------------------------------------------------------------
+  # SGLang — self-hosted Sarvam-30B inference server
+  # ---------------------------------------------------------------------------
+  # Serves Sarvam-30B Q4_K_M GGUF via OpenAI-compatible /v1/chat/completions
+  # Target: Vast.ai A10 (24 GB) with model at Q4_K_M (~19 GB), or L40S at Q6_K
+  #
+  # Model download (run once before starting):
+  #   huggingface-cli download Sumitc13/sarvam-30b-GGUF \
+  #     --local-dir ./models/sarvam-30b
+  #
+  # Start server:
+  #   python -m sglang.launch_server \
+  #     --model-path /models/sarvam-30b/sarvam-30b-q4_k_m.gguf \
+  #     --port 8081 --host 0.0.0.0 --context-length 8192
+  sglang:
+    image: lmsysorg/sglang:latest
+    container_name: vaakseva-sglang
+    ports:
+      - "8081:8081"
+    volumes:
+      - ${MODEL_DIR:-./models}:/models
+    command: >
+      python -m sglang.launch_server
+      --model-path /models/sarvam-30b/sarvam-30b-q4_k_m.gguf
+      --port 8081
+      --host 0.0.0.0
+      --context-length 8192
+      --mem-fraction-static 0.85
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 300s
+      retries: 10
+
+  # ---------------------------------------------------------------------------
+  # Weaviate — vector database (v1.32.4)
+  # ---------------------------------------------------------------------------
   weaviate:
     image: semitechnologies/weaviate:1.32.4
     container_name: vaakseva-weaviate
@@ -53,6 +153,9 @@ services:
       - weaviate_data:/var/lib/weaviate
     restart: unless-stopped
 
+  # ---------------------------------------------------------------------------
+  # Redis — job queue and session store
+  # ---------------------------------------------------------------------------
   redis:
     image: redis:7.2-alpine
     container_name: vaakseva-redis
@@ -63,6 +166,9 @@ services:
     restart: unless-stopped
     command: redis-server --save 60 1 --loglevel warning
 
+  # ---------------------------------------------------------------------------
+  # WhatsApp client (Baileys/whatsapp-web.js)
+  # ---------------------------------------------------------------------------
   whatsapp:
     build:
       context: ./whatsapp
@@ -83,5 +189,3 @@ volumes:
     driver: local
   redis_data:
     driver: local
-
-
